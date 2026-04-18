@@ -1,0 +1,62 @@
+service: laravel
+
+provider:
+  name: aws
+  region: us-east-1
+  environment:
+    APP_NAME: ${self:service}
+    APP_ENV: ${param:appEnv}
+    APP_KEY: ${ssm:/${self:service}/${sls:stage}/app-key}
+    APP_DEBUG: ${param:debug}
+    APP_URL: ${construct:website.url}
+    APP_TIMEZONE: UTC
+    SESSION_DRIVER: cookie
+    MAINTENANCE_MODE: ${param:maintenance, null}
+  ecr:
+    images:
+      php:
+        path: ./
+        file: Dockerfile
+        platform: linux/amd64
+
+functions:
+  web:
+    image:
+      name: php
+      command:
+        - public/index.php
+    timeout: 28
+    events:
+      - httpApi: '*'
+    environment:
+      BREF_RUNTIME: fpm
+
+  artisan:
+    image:
+      name: php
+      command:
+        - artisan
+    timeout: 720
+    environment:
+      BREF_RUNTIME: console
+
+constructs:
+  website:
+    type: server-side-website
+    assets:
+      '/build/*': public/build
+      '/favicon.ico': public/favicon.ico
+      '/robots.txt': public/robots.txt
+
+params:
+  default:
+    appEnv: ${sls:stage}
+    debug: 0
+  prod:
+    appEnv: production
+  dev:
+    debug: 1
+
+plugins:
+  - ./vendor/bref/bref
+  - serverless-lift
